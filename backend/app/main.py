@@ -54,16 +54,16 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
 @app.post("/auth/login", response_model=schemas.Token)
 def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     """
-    The front door check-in. You show your ID (username + password).
+    The front door check-in. You show your ID (email + password).
     If valid, you get a wristband (JWT token) to use for the rest of the night.
     """
-    user = db.query(models.User).filter(models.User.username == credentials.username).first()
+    user = db.query(models.User).filter(models.User.email == credentials.email).first()
     if not user or not auth.verify_password(credentials.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password",
+            detail="Invalid email or password",
         )
-    token = auth.create_access_token(data={"sub": user.username})
+    token = auth.create_access_token(data={"sub": user.email})
     return {"access_token": token, "token_type": "bearer"}
 
 @app.get("/auth/me", response_model=schemas.UserResponse)
