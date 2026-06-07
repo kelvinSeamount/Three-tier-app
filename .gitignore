@@ -1,0 +1,23 @@
+#Python
+backend/venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Environment & secrets
+.env
+.env.local
+k8s/**/secret-plain.yaml
+
+# Editor
+.vscode/*
+!.vscode/settings.json
+
+# OS
+.DS_Store
