@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: three-tier-frontend:latest
+          image: castromeka/three-tier-frontend:v2
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
