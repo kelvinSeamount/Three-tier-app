@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: three-tier-backend:latest
+          image: castromeka/three-tier-backend:v2
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
