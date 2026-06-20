@@ -1,19 +1,129 @@
 # Three-Tier App
+1. [Architecture Overview](#1-architecture-overview)
+2. [Technology Stack](#2-technology-stack)
+3. [Project Structure](#3-project-structure)
+4. [Local Development Setup](#4-local-dev-setup)
+5. [Dockerizing the App](#dockerizing-the-app)
+6. [Kubernetes Deployment](#kubernetes-deployment)
+7. [Errors & Fixes Log](#7-Errors-&-Fixes-Log)
 
-A three-tier application: **React (Vite) frontend** → **FastAPI backend** → **PostgreSQL database**, containerized with Docker and deployed to Kubernetes (Sealed Secrets for credentials).
 
-## Architecture
 
-```
-Browser → nginx (frontend container, port 80)
-            ├── / → serves React static build
-            └── /api/ → proxy_pass → backend-service:8000 (FastAPI)
-                                          └── postgres-service:5432 (PostgreSQL)
-```
+## 1 Architecture Overview
 
----
+┌─────────────────────────────────────────────────────┐
+│                    Kubernetes Cluster                │
+│                  namespace: three-tier-app           │
+│                                                     │
+│  ┌──────────────────┐                               │
+│  │  frontend Pod(s) │  NodePort :30080              │
+│  │  nginx:alpine    │◄──────────────────── Browser  │
+│  │  port 80         │                               │
+│  └────────┬─────────┘                               │
+│           │ /api/* → proxy_pass                     │
+│           ▼                                         │
+│  ┌──────────────────┐                               │
+│  │  backend Pod(s)  │  ClusterIP (internal only)    │
+│  │  FastAPI/uvicorn │  backend-service:8000         │
+│  │  port 8000       │                               │
+│  └────────┬─────────┘                               │
+│           │ SQLAlchemy                              │
+│           ▼                                         │
+│  ┌──────────────────┐                               │
+│  │  postgres Pod    │  ClusterIP (internal only)    │
+│  │  postgres:15-alp │  postgres-service:5432        │
+│  │  port 5432       │                               │
+│  └──────────────────┘                               │
+│           │                                         │
+│  ┌────────▼─────────┐                               │
+│  │  PersistentVolume│  1Gi — survives pod restarts  │
+│  └──────────────────┘                               │
+└─────────────────────────────────────────────────────┘
 
-## 1. Local Development Setup
+
+### Network Traffic Flow
+### How a request travels through the app:
+
+You open the app in your browser — your browser contacts the frontend (think of it as the shop's front door) and receives the React interface: the login page, buttons, forms.
+
+nginx acts as a receptionist. Every request that arrives at the frontend is handled by nginx. If you're just navigating pages — nginx serves them directly from its shelf, fast, no questions asked.
+
+When you submit a form (login, signup), nginx forwards it to the backend. Any request going to /api/ is passed through an internal corridor to FastAPI — your browser never knows the backend even exists at a separate address. It's like giving your order to a waiter who then walks to the kitchen; you never go to the kitchen yourself.
+
+FastAPI is the kitchen. It processes your request — checks your password, creates your account, generates your login token — then sends back a JSON response (like a meal on a tray) which nginx passes back to your browser.
+
+PostgreSQL is the filing cabinet. FastAPI reads from and writes to it whenever it needs to remember something — who you are, when you signed up. The data is stored on a dedicated disk space (PersistentVolumeClaim) that survives even if the database container is restarted, the same way a filing cabinet doesn't empty itself when the office closes for the night.
+
+
+
+## 2. Technology Stack
+Layer	Technology	Purpose
+Frontend	React 18 + Vite	UI framework + fast dev build tool
+Frontend serving	nginx:alpine	Serves static files + reverse proxy to backend
+Backend	FastAPI (Python 3.11)	REST API framework
+Backend server	uvicorn	ASGI server that runs FastAPI
+ORM	SQLAlchemy 2.x	Maps Python classes to database tables
+Database	PostgreSQL 15 (Alpine)	Relational database
+Auth	JWT (python-jose) + bcrypt (passlib)	Stateless authentication
+Containerization	Docker	Package app + dependencies into images
+Orchestration	Kubernetes (minikube)	Manage, scale, and deploy containers
+Secret encryption	Bitnami Sealed Secrets	Encrypt k8s Secrets for safe Git storage
+Image registry	DockerHub (castromeka/)	Store and distribute Docker images
+
+
+## 3 Project-structure
+Three-TIER-APP/
+├── README.md
+├── .gitignore                        # Excludes .env files and secret-plain.yaml
+│
+├── backend/
+│   ├── Dockerfile
+│   ├── requirements.txt              # Python dependencies
+│   └── app/
+│       ├── __init__.py
+│       ├── main.py                   # FastAPI app, route definitions, CORS
+│       ├── models.py                 # SQLAlchemy ORM models (User table)
+│       ├── schemas.py                # Pydantic request/response shapes
+│       ├── auth.py                   # JWT creation/validation, bcrypt hashing
+│       └── database.py               # Engine, session, Base setup
+│
+├── frontend/
+│   ├── Dockerfile                    # Two-stage: node build → nginx serve
+│   ├── nginx.conf                    # Custom nginx: SPA routing + /api/ proxy
+│   ├── .dockerignore                 # Prevents .env from entering Docker build
+│   ├── package.json
+│   ├── vite.config.js
+│   └── src/
+│       ├── main.jsx                  # React entry point
+│       ├── App.jsx                   # Router with PrivateRoute guard
+│       ├── api.js                    # Axios instance with JWT interceptor
+│       └── pages/
+│           ├── Login.jsx
+│           ├── Signup.jsx
+│           └── Dashboard.jsx         # Protected — requires valid token
+│
+└── k8s/
+    ├── namespace.yaml                # Creates namespace: three-tier-app
+    ├── postgres/
+    │   ├── configmap.yaml            # POSTGRES_DB=appdb (non-sensitive)
+    │   ├── secret-plain.yaml         # GITIGNORED — plain text credentials
+    │   ├── sealed-secret.yaml        # Committed — encrypted credentials
+    │   ├── pvc.yaml                  # 1Gi persistent volume claim
+    │   ├── deployment.yaml           # postgres:15-alpine, 1 replica
+    │   └── service.yaml              # ClusterIP on port 5432
+    ├── backend/
+    │   ├── configmap.yaml            # JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+    │   ├── secret-plain.yaml         # GITIGNORED — DATABASE_URL, SECRET_KEY
+    │   ├── sealed-secret.yaml        # Committed — encrypted
+    │   ├── deployment.yaml           # castromeka/three-tier-backend:v2, 2 replicas
+    │   └── service.yaml              # ClusterIP on port 8000
+    └── frontend/
+        ├── deployment.yaml           # castromeka/three-tier-frontend:v2, 2 replicas
+        └── service.yaml              # NodePort 30080
+
+
+
+## 4 Local Development Setup
 
 ### Backend
 
@@ -65,7 +175,7 @@ VITE_API_URL=http://localhost:8000
 
 ---
 
-## 2. Dockerizing the App
+## 5. Dockerizing the App
 
 ### Backend — `backend/Dockerfile`
 Multi-stage not needed; simple `python:3.11-slim` image running `uvicorn`.
@@ -139,7 +249,7 @@ Visit `http://localhost:8081`. The `--network-alias backend-service` simulates t
 
 ---
 
-## 3. Kubernetes Deployment
+## 6 Kubernetes Deployment
 
 ### Layout
 ```
@@ -234,7 +344,7 @@ head -c 32 /dev/urandom | base64
 
 ---
 
-## Errors & Fixes Log
+## 7 Errors & Fixes Log
 
 ### 1. `psycopg2.OperationalError: Connection refused` (port 5432)
 **Cause:** `local-postgres` container not running.
