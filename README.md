@@ -11,6 +11,7 @@
 
 ## 1 Architecture Overview
 
+```
 ┌─────────────────────────────────────────────────────┐
 │                    Kubernetes Cluster                │
 │                  namespace: three-tier-app           │
@@ -40,6 +41,7 @@
 │  └──────────────────┘                               │
 └─────────────────────────────────────────────────────┘
 
+```
 
 ### Network Traffic Flow
 ### How a request travels through the app:
@@ -72,6 +74,8 @@ Image registry	DockerHub (castromeka/)	Store and distribute Docker images
 
 
 ## 3 Project-structure
+
+````
 Three-TIER-APP/
 ├── README.md
 ├── .gitignore                        # Excludes .env files and secret-plain.yaml
@@ -121,7 +125,7 @@ Three-TIER-APP/
         ├── deployment.yaml           # castromeka/three-tier-frontend:v2, 2 replicas
         └── service.yaml              # NodePort 30080
 
-
+```
 
 ## 4 Local Development Setup
 
