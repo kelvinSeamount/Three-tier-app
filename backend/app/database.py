@@ -1,7 +1,11 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
 import os
+
+# Load variables from a local .env file (if present) into the environment.
+load_dotenv()
 
 # The DATABASE_URL is the "address" of our pantry.
 # We read it from an environment variable (Kubernetes will inject this).
