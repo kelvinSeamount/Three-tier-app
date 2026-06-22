@@ -405,3 +405,4 @@ Use the tunneled `127.0.0.1:<port>` URL it prints/opens.
 ### 10. "Signup failed" — no request ever reaches the backend
 **Cause:** `frontend/.env` (`VITE_API_URL=http://localhost:8000`, for local dev) was copied into the Docker build context via `COPY . .` and got **baked into the production JS bundle** by Vite at build time (`baseURL: "http://localhost:8000"`). In the browser, `localhost:8000` points to the user's own machine — request never leaves the browser successfully.
 **Fix:** Add `frontend/.dockerignore` excluding `.env`, rebuild/push/load a new tag. The bundle then falls back to `baseURL: "/api"`, correctly proxied by nginx to `backend-service:8000`.
+
